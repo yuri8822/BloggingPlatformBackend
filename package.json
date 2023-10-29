@@ -1,0 +1,26 @@
+{
+  "name": "bloggingplatformbackend",
+  "version": "1.0.0",
+  "description": "This is one of my first Implementations of backend logic using Node.js and MongoDB. This code is for a Blogging platform and only works on the backend, though that may change in the future.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuri8822/BloggingPlatformBackend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yuri8822/BloggingPlatformBackend/issues"
+  },
+  "homepage": "https://github.com/yuri8822/BloggingPlatformBackend#readme",
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "express": "^4.18.2",
+    "mongoose": "^7.6.3",
+    "nodemon": "^3.0.1"
+  }
+}
