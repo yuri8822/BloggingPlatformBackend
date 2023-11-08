@@ -7,9 +7,8 @@ const app = express();
 const port = 3000;
 
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost:27017/WEB_ENG', { useNewUrlParser: true });
-const connection = mongoose.connection;
-connection.once('open', () => { console.log('Connected to MongoDB Successfully') });
+mongoose.connect('mongodb://localhost:27017/WEB_ENG');
+mongoose.connection.once('open', () => { console.log('Connected to MongoDB Successfully') });
 
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
