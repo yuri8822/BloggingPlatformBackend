@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     admin: { type: Boolean, required: true, default: false },
     blocked: { type: Boolean, required: true, default: false },
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 });
 
 const User = mongoose.model('User', userSchema);
