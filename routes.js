@@ -216,7 +216,7 @@ router.get('/blog', authenticate, (req, res) => {
 });
 
 // allow users to like or dislike blog posts:
-router.post('/blog/:id/:rate', authenticate, (req, res) => {
+router.post('/blog/rate/:id/:rate', authenticate, (req, res) => {
 
     if (req.params.rate != "like" && req.params.rate != "dislike") {
         console.log("Invalid rate!");
@@ -249,17 +249,22 @@ router.post('/blog/:id/:rate', authenticate, (req, res) => {
 });
 
 // allow users to comment on blog posts:
-router.post('/blog/:id/comment', authenticate, (req, res) => {
+router.post('/blog/comment/:id', authenticate, (req, res) => {
 
     Blog.findOne({ title: req.params.id }).then((blog) => {
         if (blog) {
-            blog.comments.push(req.body.comment);
+            blog.comments.push({
+                comment: req.body.comment,                
+                user: req.user.username
+            });
             blog.save().then((blog) => {
                 if (blog) {
                     console.log("blog commented successfully!");
+                    res.json({ message: "blog commented successfully!" });
                 }
                 else {
                     console.log("blog not commented!");
+                    res.json({ message: "blog not commented!" });
                 }
             });
         }
@@ -269,7 +274,7 @@ router.post('/blog/:id/comment', authenticate, (req, res) => {
     });
 });
 
-// implement sorting and filtering options for posts:
+// sort posts:
 router.get('/blog/sort/:sort', authenticate, (req, res) => {
 
     Blog.find().sort(req.params.sort).then((blogs) => {
@@ -282,9 +287,10 @@ router.get('/blog/sort/:sort', authenticate, (req, res) => {
     });
 });
 
+// filter posts:
 router.get('/blog/filter/:filter', authenticate, (req, res) => {
 
-    Blog.find({ title: req.params.filter }).then((blogs) => {
+    Blog.find({ createdBy: req.params.filter }).then((blogs) => {
         if (blogs) {
             res.json(blogs);
         }
@@ -297,18 +303,21 @@ router.get('/blog/filter/:filter', authenticate, (req, res) => {
 
 // 3. User Interaction Module:
 
-router.post('/user/:id/follow', authenticate, (req, res) => {
+// allow users to follow other bloggers:
 
-    User.findOne({ _id: req.params.id }).then((user) => {
+router.post('/user/follow/:id', authenticate, (req, res) => {
 
+    User.findOne({ username: req.params.id }).then((user) => {
         if (user) {
-            user.followers.push(req.user.id);
+            user.followers.push(req.user.username);
             user.save().then((user) => {
                 if (user) {
                     console.log("user followed successfully!");
+                    res.json({ message: "user followed successfully!" });
                 }
                 else {
                     console.log("user not followed!");
+                    res.json({ message: "user not followed!" });
                 }
             });
         }
@@ -320,9 +329,9 @@ router.post('/user/:id/follow', authenticate, (req, res) => {
 
 // display a user's feed with posts from followed bloggers:
 
-router.get('/user/:id/feed', authenticate, (req, res) => {
+router.get('/user/feed', authenticate, (req, res) => {
 
-    User.findOne({ _id: req.params.id }).then((user) => {
+    User.findOne({ username: req.user.username }).then((user) => {
         if (user) {
             Blog.find({ createdBy: user.followers }).then((blogs) => {
                 if (blogs) {
@@ -342,9 +351,9 @@ router.get('/user/:id/feed', authenticate, (req, res) => {
 // implement notifications for new followers and comments on the user's posts:
 
 
-
 // 4. Search Module:
 
+//Implement a search functionality to find blog posts based on keywords, categories, and authors:
 
 
 // 5. Admin Operations Module:
@@ -367,7 +376,7 @@ router.get('/admin/users', authenticate, (req, res) => {
 });
 
 // Block/Disable a user:
-router.put('/admin/users/:id', authenticate, (req, res) => {
+router.put('/admin/users/block/:id', authenticate, (req, res) => {
 
     if (!req.user.admin) {
         return res.sendStatus(403);
@@ -384,6 +393,33 @@ router.put('/admin/users/:id', authenticate, (req, res) => {
                 else {
                     console.log("user not blocked!");
                     res.json({ message: "user not blocked!" });
+                }
+            });
+        }
+        else {
+            res.sendStatus(404);
+        }
+    });
+});
+
+// Unblock/Enable a user:
+router.put('/admin/users/unblock/:id', authenticate, (req, res) => {
+
+    if (!req.user.admin) {
+        return res.sendStatus(403);
+    }
+
+    User.findOne({ username: req.params.id }).then((user) => {
+        if (user) {
+            user.blocked = false;
+            user.save().then((user) => {
+                if (user) {
+                    console.log("user unblocked successfully!");
+                    res.json({ message: "user unblocked successfully!" });
+                }
+                else {
+                    console.log("user not unblocked!");
+                    res.json({ message: "user not unblocked!" });
                 }
             });
         }
@@ -428,7 +464,7 @@ router.get('/admin/blogs/:id', authenticate, (req, res) => {
 });
 
 // Disable a blog:
-router.put('/admin/blogs/:id', authenticate, (req, res) => {
+router.put('/admin/blogs/disable/:id', authenticate, (req, res) => {
 
     if (!req.user.admin) {
         return res.sendStatus(403);
@@ -454,5 +490,31 @@ router.put('/admin/blogs/:id', authenticate, (req, res) => {
     });
 });
 
+// Enable a blog:
+router.put('/admin/blogs/enable/:id', authenticate, (req, res) => {
+
+    if (!req.user.admin) {
+        return res.sendStatus(403);
+    }
+
+    Blog.findOne({ title: req.params.id }).then((blog) => {
+        if (blog) {
+            blog.disabled = false;
+            blog.save().then((blog) => {
+                if (blog) {
+                    console.log("blog enabled successfully!");
+                    res.json({ message: "blog enabled successfully!" });
+                }
+                else {
+                    console.log("blog not enabled!");
+                    res.json({ message: "blog not enabled!" });
+                }
+            });
+        }
+        else {
+            res.sendStatus(404);
+        }
+    });
+});
 
 module.exports = router;
