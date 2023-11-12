@@ -15,13 +15,12 @@ function authenticate(req, res, next) {
     if (token == null) return res.sendStatus(401); // if there isn't any token
 
     jwt.verify(token, 'mySecret', (err, user) => {
-        if (err)
-        {
+        if (err) {
             console.log(err);
             return res.sendStatus(403);
         }
         req.user = user;
-        next(); // pass the execution off to whatever request the client intended
+        next();
     });
 }
 
@@ -40,11 +39,11 @@ router.post('/register', (req, res) => {
     newUser.save().then((user) => {
         if (user) {
             console.log("user saved successfully!");
-            res.json({ message: "user saved successfully!"});
+            res.json({ message: "user saved successfully!" });
         }
         else {
             console.log("user not saved!");
-            res.json({ message: "user not saved!"});
+            res.json({ message: "user not saved!" });
         }
     });
 });
@@ -58,22 +57,26 @@ router.post('/login', (req, res) => {
                 res.sendStatus({ message: "You are blocked!" });
             }
             const payload = { id: user.id, username: user.username, admin: user.admin };
-            const options = { expiresIn: '1d' };
+            const options = { expiresIn: '1h' };
             const secret = 'mySecret';
             const token = jwt.sign(payload, secret, options);
             res.json({ token: token });
         }
         else {
-            res.sendStatus(401);
+            res.sendStatus(404);
         }
     });
 });
 
-// User profile retrieval and update:
+// User profile retrieval
 
 router.get('/user/:id', authenticate, (req, res) => {
 
-    User.findOne({ _id: req.params.id}).then((user) => {
+    if (!req.user.admin) {
+        return res.sendStatus(403);
+    }
+
+    User.findOne({ username: req.params.id }).then((user) => {
         if (user) {
             res.json(user);
         }
@@ -83,19 +86,27 @@ router.get('/user/:id', authenticate, (req, res) => {
     });
 });
 
+// User profile update:
+
 router.put('/user/:id', authenticate, (req, res) => {
 
-    User.findByIdAndUpdate({ _id: req.params.id }).then((user) => {
+    User.findOne({ username: req.params.id }).then((user) => {
         if (user) {
+            if (user.username != req.user.username && !req.user.admin) {
+                console.log("You are not the owner of this blog!");
+                return res.sendStatus(403);
+            }
             user.username = req.body.username;
             user.email = req.body.email;
             user.password = req.body.password;
             user.save().then((user) => {
                 if (user) {
                     console.log("user updated successfully!");
+                    res.json({ message: "user updated successfully!" });
                 }
                 else {
                     console.log("user not updated!");
+                    res.json({ message: "user not updated!" });
                 }
             });
         }
@@ -115,17 +126,17 @@ router.post('/blog', authenticate, (req, res) => {
         content: req.body.content,
 
         // the user who created the blog post is the owner of the blog post:
-        owner: req.user.username
+        createdBy: req.user.username
     });
 
     newBlog.save().then((blog) => {
         if (blog) {
             console.log("blog saved successfully!");
-            res.json({ message: "blog saved successfully!"});
+            res.json({ message: "blog saved successfully!" });
         }
         else {
             console.log("blog not saved!");
-            res.json({ message: "blog not saved!"});
+            res.json({ message: "blog not saved!" });
         }
     });
 });
@@ -133,9 +144,9 @@ router.post('/blog', authenticate, (req, res) => {
 // read a blog post:
 router.get('/blog/:id', authenticate, (req, res) => {
 
-    Blog.findOne({ _id: req.params.id }).then((blog) => {
+    Blog.findOne({ title: req.params.id, blocked: false }).then((blog) => {
         if (blog) {
-            res.json(blog);
+            res.json(blog.content);
         }
         else {
             res.sendStatus(404);
@@ -146,16 +157,22 @@ router.get('/blog/:id', authenticate, (req, res) => {
 // update a blog post:
 router.put('/blog/:id', authenticate, (req, res) => {
 
-    Blog.findOne({ _id: req.params.id }).then((blog) => {
+    Blog.findOne({ title: req.params.id }).then((blog) => {
         if (blog) {
+            if (blog.createdBy != req.user.username) {
+                console.log("You are not the owner of this blog!");
+                return res.sendStatus(403);
+            }
             blog.title = req.body.title;
             blog.content = req.body.content;
             blog.save().then((blog) => {
                 if (blog) {
                     console.log("blog updated successfully!");
+                    res.json({ message: "blog updated successfully!" });
                 }
                 else {
                     console.log("blog not updated!");
+                    res.json({ message: "blog not updated!" });
                 }
             });
         }
@@ -167,17 +184,16 @@ router.put('/blog/:id', authenticate, (req, res) => {
 
 // delete a blog post:
 router.delete('/blog/:id', authenticate, (req, res) => {
-
-    Blog.findOne({ _id: req.params.id }).then((blog) => {
+    
+    Blog.findOne({ title: req.params.id }).then((blog) => {
         if (blog) {
-            blog.remove().then((blog) => {
-                if (blog) {
-                    console.log("blog deleted successfully!");
-                }
-                else {
-                    console.log("blog not deleted!");
-                }
-            });
+            if (blog.createdBy != req.user.username && !req.user.admin) {
+                console.log("You are not the owner of this blog!");
+                return res.sendStatus(403);
+            }
+            Blog.deleteOne({ title: req.params.id })
+            console.log("blog deleted successfully!");
+            res.json({ message: "blog deleted successfully!" });
         }
         else {
             res.sendStatus(404);
@@ -188,9 +204,10 @@ router.delete('/blog/:id', authenticate, (req, res) => {
 // retrieve a list of all blog posts:
 router.get('/blog', authenticate, (req, res) => {
 
-    Blog.find().then((blogs) => {
+    Blog.find({blocked: false}).then((blogs) => {
         if (blogs) {
-            res.json(blogs);
+            const list = blogs.forEach((blog) => blog.title);
+            res.json(list);
         }
         else {
             res.sendStatus(404);
@@ -198,18 +215,30 @@ router.get('/blog', authenticate, (req, res) => {
     });
 });
 
-// allow users to rate and comment on blog posts:
-router.post('/blog/:id/rating', authenticate, (req, res) => {
+// allow users to like or dislike blog posts:
+router.post('/blog/:id/:rate', authenticate, (req, res) => {
 
-    Blog.findOne({ _id: req.params.id }).then((blog) => {
+    if (req.params.rate != "like" && req.params.rate != "dislike") {
+        console.log("Invalid rate!");
+        return res.json({ message: "Please choose like or dislike!" });
+    }
+
+    Blog.findOne({ title: req.params.id }).then((blog) => {
         if (blog) {
-            blog.rating = req.body.rating;
+            if (req.params.rate == "like") {
+                blog.likes++;
+            }
+            else if (req.params.rate == "dislike") {
+                blog.dislikes++;
+            }
             blog.save().then((blog) => {
                 if (blog) {
                     console.log("blog rated successfully!");
+                    res.json({ message: "blog rated successfully!" });
                 }
                 else {
                     console.log("blog not rated!");
+                    res.json({ message: "blog not rated!" });
                 }
             });
         }
@@ -219,9 +248,10 @@ router.post('/blog/:id/rating', authenticate, (req, res) => {
     });
 });
 
+// allow users to comment on blog posts:
 router.post('/blog/:id/comment', authenticate, (req, res) => {
 
-    Blog.findOne({ _id: req.params.id }).then((blog) => {
+    Blog.findOne({ title: req.params.id }).then((blog) => {
         if (blog) {
             blog.comments.push(req.body.comment);
             blog.save().then((blog) => {
@@ -293,9 +323,8 @@ router.post('/user/:id/follow', authenticate, (req, res) => {
 router.get('/user/:id/feed', authenticate, (req, res) => {
 
     User.findOne({ _id: req.params.id }).then((user) => {
-
         if (user) {
-            Blog.find({ owner: user.followers }).then((blogs) => {
+            Blog.find({ createdBy: user.followers }).then((blogs) => {
                 if (blogs) {
                     res.json(blogs);
                 }
@@ -311,6 +340,119 @@ router.get('/user/:id/feed', authenticate, (req, res) => {
 });
 
 // implement notifications for new followers and comments on the user's posts:
+
+
+
+// 4. Search Module:
+
+
+
+// 5. Admin Operations Module:
+
+// View all users:
+router.get('/admin/users', authenticate, (req, res) => {
+
+    if (!req.user.admin) {
+        return res.sendStatus(403);
+    }
+
+    User.find().then((users) => {
+        if (users) {
+            res.json(users);
+        }
+        else {
+            res.sendStatus(404);
+        }
+    });
+});
+
+// Block/Disable a user:
+router.put('/admin/users/:id', authenticate, (req, res) => {
+
+    if (!req.user.admin) {
+        return res.sendStatus(403);
+    }
+
+    User.findOne({ username: req.params.id }).then((user) => {
+        if (user) {
+            user.blocked = true;
+            user.save().then((user) => {
+                if (user) {
+                    console.log("user blocked successfully!");
+                    res.json({ message: "user blocked successfully!" });
+                }
+                else {
+                    console.log("user not blocked!");
+                    res.json({ message: "user not blocked!" });
+                }
+            });
+        }
+        else {
+            res.sendStatus(404);
+        }
+    });
+});
+
+// List all Blog Posts:
+router.get('/admin/blogs', authenticate, (req, res) => {
+
+    if (!req.user.admin) {
+        return res.sendStatus(403);
+    }
+
+    Blog.find().then((blogs) => {
+        if (blogs) {
+            res.json(blogs);
+        }
+        else {
+            res.sendStatus(404);
+        }
+    });
+});
+
+// View a Particular Blog Post:
+router.get('/admin/blogs/:id', authenticate, (req, res) => {
+
+    if (!req.user.admin) {
+        return res.sendStatus(403);
+    }
+
+    Blog.findOne({ title: req.params.id }).then((blog) => {
+        if (blog) {
+            res.json(blog);
+        }
+        else {
+            res.sendStatus(404);
+        }
+    });
+});
+
+// Disable a blog:
+router.put('/admin/blogs/:id', authenticate, (req, res) => {
+
+    if (!req.user.admin) {
+        return res.sendStatus(403);
+    }
+
+    Blog.findOne({ title: req.params.id }).then((blog) => {
+        if (blog) {
+            blog.disabled = true;
+            blog.save().then((blog) => {
+                if (blog) {
+                    console.log("blog disabled successfully!");
+                    res.json({ message: "blog disabled successfully!" });
+                }
+                else {
+                    console.log("blog not disabled!");
+                    res.json({ message: "blog not disabled!" });
+                }
+            });
+        }
+        else {
+            res.sendStatus(404);
+        }
+    });
+});
 
 
 module.exports = router;

@@ -15,6 +15,7 @@ const blogSchema = new mongoose.Schema({
         }],
     dateCreated: {type: Date, default: Date.now},
     createdBy: String,
+    disabled: { type: Boolean, default: false }
 });
 
 const Blog = mongoose.model('Blog', blogSchema);
