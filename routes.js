@@ -204,9 +204,9 @@ router.delete('/blog/:id', authenticate, (req, res) => {
 // retrieve a list of all blog posts:
 router.get('/blog', authenticate, (req, res) => {
 
-    Blog.find({blocked: false}).then((blogs) => {
+    Blog.find({disabled: false}).then((blogs) => {
         if (blogs) {
-            const list = blogs.forEach((blog) => blog.title);
+            const list = blogs.map((blog) => blog.title);
             res.json(list);
         }
         else {
