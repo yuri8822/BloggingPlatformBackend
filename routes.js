@@ -184,7 +184,7 @@ router.put('/blog/:id', authenticate, (req, res) => {
 
 // delete a blog post:
 router.delete('/blog/:id', authenticate, (req, res) => {
-    
+
     Blog.findOne({ title: req.params.id }).then((blog) => {
         if (blog) {
             if (blog.createdBy != req.user.username && !req.user.admin) {
@@ -204,10 +204,9 @@ router.delete('/blog/:id', authenticate, (req, res) => {
 // retrieve a list of all blog posts:
 router.get('/blog', authenticate, (req, res) => {
 
-    Blog.find({disabled: false}).then((blogs) => {
+    Blog.find({ disabled: false }).then((blogs) => {
         if (blogs) {
-            const list = blogs.map((blog) => blog.title);
-            res.json(list);
+            res.json(blogs);
         }
         else {
             res.sendStatus(404);
@@ -215,9 +214,8 @@ router.get('/blog', authenticate, (req, res) => {
     });
 });
 
-// allow users to like or dislike blog posts:
+// allow users to like or dislike blog posts, a user can only like or dislike a blog post once:
 router.post('/blog/rate/:id/:rate', authenticate, (req, res) => {
-
     if (req.params.rate != "like" && req.params.rate != "dislike") {
         console.log("Invalid rate!");
         return res.json({ message: "Please choose like or dislike!" });
@@ -226,24 +224,46 @@ router.post('/blog/rate/:id/:rate', authenticate, (req, res) => {
     Blog.findOne({ title: req.params.id }).then((blog) => {
         if (blog) {
             if (req.params.rate == "like") {
-                blog.likes++;
+                // If the user has already liked the blog, remove their like
+                const index = blog.likes.indexOf(req.user.username);
+                if (index > -1) {
+                    blog.likes.splice(index, 1);
+                } else {
+                    // Otherwise, add their like
+                    blog.likes.push(req.user.username);
+                    // And make sure to remove any dislike they might have added before
+                    const dislikeIndex = blog.dislikes.indexOf(req.user.username);
+                    if (dislikeIndex > -1) {
+                        blog.dislikes.splice(dislikeIndex, 1);
+                    }
+                }
+            } else if (req.params.rate == "dislike") {
+                // If the user has already disliked the blog, remove their dislike
+                const index = blog.dislikes.indexOf(req.user.username);
+                if (index > -1) {
+                    blog.dislikes.splice(index, 1);
+                } else {
+                    // Otherwise, add their dislike
+                    blog.dislikes.push(req.user.username);
+                    // And make sure to remove any like they might have added before
+                    const likeIndex = blog.likes.indexOf(req.user.username);
+                    if (likeIndex > -1) {
+                        blog.likes.splice(likeIndex, 1);
+                    }
+                }
             }
-            else if (req.params.rate == "dislike") {
-                blog.dislikes++;
-            }
+
             blog.save().then((blog) => {
                 if (blog) {
                     console.log("blog rated successfully!");
-                    res.json({ message: "blog rated successfully!" });
-                }
-                else {
+                    return res.json(blog);
+                } else {
                     console.log("blog not rated!");
-                    res.json({ message: "blog not rated!" });
+                    return res.json({ message: "blog not rated!" });
                 }
             });
-        }
-        else {
-            res.sendStatus(404);
+        } else {
+            return res.sendStatus(404);
         }
     });
 });
@@ -253,8 +273,12 @@ router.post('/blog/comment/:id', authenticate, (req, res) => {
 
     Blog.findOne({ title: req.params.id }).then((blog) => {
         if (blog) {
+            if (req.body.comment == "") {
+                console.log("Comment cannot be empty!");
+                return res.json({ message: "Comment cannot be empty!" });
+            }
             blog.comments.push({
-                comment: req.body.comment,                
+                comment: req.body.comment,
                 user: req.user.username
             });
             blog.save().then((blog) => {
@@ -304,24 +328,37 @@ router.get('/blog/filter/:filter', authenticate, (req, res) => {
 // 3. User Interaction Module:
 
 // allow users to follow other bloggers:
-
 router.post('/user/follow/:id', authenticate, (req, res) => {
-
     User.findOne({ username: req.params.id }).then((user) => {
         if (user) {
-            user.followers.push(req.user.username);
-            user.save().then((user) => {
-                if (user) {
-                    console.log("user followed successfully!");
-                    res.json({ message: "user followed successfully!" });
+            // Check if the user is already following the blogger
+            if (!user.followers.includes(req.user.username)) {
+                user.followers.push(req.user.username);
+                user.save().then((user) => {
+                    if (user) {
+                        console.log("user followed successfully!");
+                        res.json({ message: "user followed successfully!" });
+                    } else {
+                        console.log("user not followed!");
+                        res.json({ message: "user not followed!" });
+                    }
+                });
+            } else {
+                const index = user.followers.indexOf(req.user.username);
+                if (index > -1) {
+                    user.followers.splice(index, 1);
                 }
-                else {
-                    console.log("user not followed!");
-                    res.json({ message: "user not followed!" });
-                }
-            });
-        }
-        else {
+                user.save().then((user) => {
+                    if (user) {
+                        console.log("user unfollowed successfully!");
+                        res.json({ message: "user unfollowed successfully!" });
+                    } else {
+                        console.log("user not unfollowed!");
+                        res.json({ message: "user not unfollowed!" });
+                    }
+                });
+            }
+        } else {
             res.sendStatus(404);
         }
     });

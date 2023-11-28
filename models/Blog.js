@@ -3,13 +3,13 @@ const mongoose = require('mongoose');
 const blogSchema = new mongoose.Schema({
     title: String,
     content: String,
-    likes: { type: Number, default: 0 },
-    dislikes: { type: Number, default: 0 },
+    likes: [String],
+    dislikes: [String],
     comments:
         [{
             comment: String,
-            likes: { type: Number, default: 0 },
-            dislikes: { type: Number, default: 0 },
+            likes: [String],
+            dislikes: [String],
             date: {type: Date, default: Date.now},
             user: String,
         }],
